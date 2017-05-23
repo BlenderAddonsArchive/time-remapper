@@ -82,7 +82,7 @@ class OBJECT_OT_render_TR(bpy.types.Operator):
         # keep a count for labelling the filenames
         count = 0
 
-        first_frame = scene.frame_start
+        first_frame = scene.timeremap_startframe_true
 
         # before starting loop, set up a signal handler for CTL+C
         # since KeyboardInterrupt doesn't work while rendering
@@ -223,14 +223,14 @@ class OBJECT_OT_playback_TR(bpy.types.Operator):
         # get number of frames that we need to play back
         num_frames = len(get_TR_frames(context))
 
-        old_frame_end = scene.frame_end
+        old_frame_end = scene.timeremap_endframe_true
 
-        scene.frame_end = scene.frame_start + num_frames - 1
+        scene.timeremap_endframe_true = scene.timeremap_startframe_true + num_frames - 1
 
         bpy.ops.render.play_rendered_anim()
 
         # restore the old end frame
-        scene.frame_end = old_frame_end
+        scene.timeremap_endframe_true = old_frame_end
 
         return {"FINISHED"}
 
@@ -271,6 +271,23 @@ def draw(self, context):
                        text="")
     rowsub.prop_search(scene, "timeremap_immuneObject3", scene, "objects",
                        text="")
+    
+    
+    row = layout.row(align=True)
+    row.alignment = "LEFT"
+    rowsub = row.row(align=True)
+    rowsub.alignment = "LEFT"
+    rowsub.label("Start Frame:")
+    rowsub.prop(scene, "timeremap_startframe_true")
+    rowsub.prop(scene, "timeremap_startframe_remapped")
+    
+    row = layout.row(align=True)
+    row.alignment = "LEFT"
+    rowsub = row.row(align=True)
+    rowsub.alignment = "LEFT"
+    rowsub.label("End Frame:")
+    rowsub.prop(scene, "timeremap_endframe_true")
+    rowsub.prop(scene, "timeremap_endframe_remapped")
 
 
 def find_fcurve(scene_or_obj, data_path, index=0):
@@ -384,7 +401,7 @@ def get_TR_frames_from_SF(context):
     TR_frames = []
 
     # current time-remapped frame
-    current_TR_frame = scene.frame_start
+    current_TR_frame = scene.timeremap_startframe_true
 
     # for unkeyframed, we can't use the F-Curve, so we treat it separately
     if is_keyframed(scene, "timeremap_speedfactor") is False:
@@ -396,7 +413,7 @@ def get_TR_frames_from_SF(context):
                                " infinite loop!")
 
         # loop through all frames until the end
-        while current_TR_frame <= scene.frame_end:
+        while current_TR_frame <= scene.timeremap_endframe_true:
             TR_frames.append(current_TR_frame)
             current_TR_frame += scene.timeremap_speedfactor
 
@@ -409,7 +426,7 @@ def get_TR_frames_from_SF(context):
 
     # we loop through however many (time-remapped) frames it takes
     # to get to the end frame
-    while current_TR_frame <= scene.frame_end:
+    while current_TR_frame <= scene.timeremap_endframe_true:
 
         # add current frame to our list
         TR_frames.append(current_TR_frame)
@@ -444,7 +461,7 @@ def get_TR_frames_from_TTC(context):
     # Time-remapped frames to render
     TR_frames = []
     # jump to non-time-remapped start frame
-    nonTR_frame = scene.frame_start
+    nonTR_frame = scene.timeremap_startframe_true
     scene.frame_set(nonTR_frame)
 
     # to avoid getting stuck in an infinite loop (ex: TT curve never reaches
@@ -460,7 +477,7 @@ def get_TR_frames_from_TTC(context):
 
     # we loop through however many (time-remapped) frames
     # it takes to get to the end frame
-    while current_TTC_value <= scene.frame_end:
+    while current_TTC_value <= scene.timeremap_endframe_true:
 
         TR_frames.append(current_TTC_value)
 
@@ -548,6 +565,27 @@ def register():
     bpy.types.Scene.timeremap_immuneObject3 = bpy.props.StringProperty(
         name="Immune Object 3",
         description="Make object immune to time remapping effects"
+    )
+    
+    
+    bpy.types.Scene.timeremap_startframe_true = bpy.props.IntProperty(
+        name="True",
+        description="Frame (BEFORE time remapping is applied) to start TR rendering at"
+    )
+    
+    bpy.types.Scene.timeremap_startframe_remapped = bpy.props.IntProperty(
+        name="TR",
+        description="Frame (AFTER time remapping is applied) to start TR rendering at"
+    )
+    
+    bpy.types.Scene.timeremap_endframe_true = bpy.props.IntProperty(
+        name="True",
+        description="Frame (BEFORE time remapping is applied) to end TR rendering at"
+    )
+    
+    bpy.types.Scene.timeremap_endframe_remapped = bpy.props.IntProperty(
+        name="TR",
+        description="Frame (AFTER time remapping is applied) to end TR rendering at"
     )
 
     # Draw panel under the header "Render" in Render tab of Properties window
