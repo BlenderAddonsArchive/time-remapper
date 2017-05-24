@@ -82,7 +82,7 @@ class OBJECT_OT_render_TR(bpy.types.Operator):
         # keep a count for labelling the filenames
         count = 0
 
-        first_frame = scene.timeremap_startframe_true
+        first_frame = scene.timeremap_startframe
 
         # before starting loop, set up a signal handler for CTL+C
         # since KeyboardInterrupt doesn't work while rendering
@@ -223,14 +223,14 @@ class OBJECT_OT_playback_TR(bpy.types.Operator):
         # get number of frames that we need to play back
         num_frames = len(get_TR_frames(context))
 
-        old_frame_end = scene.timeremap_endframe_true
+        old_frame_end = scene.timeremap_endframe
 
-        scene.timeremap_endframe_true = scene.timeremap_startframe_true + num_frames - 1
+        scene.timeremap_endframe = scene.timeremap_startframe + num_frames - 1
 
         bpy.ops.render.play_rendered_anim()
 
         # restore the old end frame
-        scene.timeremap_endframe_true = old_frame_end
+        scene.timeremap_endframe = old_frame_end
 
         return {"FINISHED"}
 
@@ -277,17 +277,11 @@ def draw(self, context):
     row.alignment = "LEFT"
     rowsub = row.row(align=True)
     rowsub.alignment = "LEFT"
-    rowsub.label("Start Frame:")
-    rowsub.prop(scene, "timeremap_startframe_true")
-    rowsub.prop(scene, "timeremap_startframe_remapped")
+    rowsub.prop(scene, "timeremap_startframe")
+    rowsub.prop(scene, "timeremap_endframe")
     
     row = layout.row(align=True)
     row.alignment = "LEFT"
-    rowsub = row.row(align=True)
-    rowsub.alignment = "LEFT"
-    rowsub.label("End Frame:")
-    rowsub.prop(scene, "timeremap_endframe_true")
-    rowsub.prop(scene, "timeremap_endframe_remapped")
 
 
 def find_fcurve(scene_or_obj, data_path, index=0):
@@ -401,19 +395,19 @@ def get_TR_frames_from_SF(context):
     TR_frames = []
 
     # current time-remapped frame
-    current_TR_frame = scene.timeremap_startframe_true
+    current_TR_frame = scene.timeremap_startframe
 
     # for unkeyframed, we can't use the F-Curve, so we treat it separately
     if is_keyframed(scene, "timeremap_speedfactor") is False:
 
         # avoid infinite loop by checing that speed factor's positive
         if scene.timeremap_speedfactor <= 0:
-            raise RuntimeError("\n\nYou're speed factor must always be"
+            raise RuntimeError("\n\nYour speed factor must always be"
                                "positive to avoid getting stuck in an"
                                " infinite loop!")
 
         # loop through all frames until the end
-        while current_TR_frame <= scene.timeremap_endframe_true:
+        while current_TR_frame <= scene.timeremap_endframe:
             TR_frames.append(current_TR_frame)
             current_TR_frame += scene.timeremap_speedfactor
 
@@ -426,7 +420,7 @@ def get_TR_frames_from_SF(context):
 
     # we loop through however many (time-remapped) frames it takes
     # to get to the end frame
-    while current_TR_frame <= scene.timeremap_endframe_true:
+    while current_TR_frame <= scene.timeremap_endframe:
 
         # add current frame to our list
         TR_frames.append(current_TR_frame)
@@ -436,7 +430,7 @@ def get_TR_frames_from_SF(context):
 
         # avoid infinite loop by checing that speed factor's positive
         if current_SF <= 0:
-            raise RuntimeError("\n\nYou're speed factor must always be"
+            raise RuntimeError("\n\nYour speed factor must always be"
                                "positive to avoid getting stuck in an"
                                " infinite loop!")
 
@@ -461,7 +455,7 @@ def get_TR_frames_from_TTC(context):
     # Time-remapped frames to render
     TR_frames = []
     # jump to non-time-remapped start frame
-    nonTR_frame = scene.timeremap_startframe_true
+    nonTR_frame = scene.timeremap_startframe
     scene.frame_set(nonTR_frame)
 
     # to avoid getting stuck in an infinite loop (ex: TT curve never reaches
@@ -477,7 +471,7 @@ def get_TR_frames_from_TTC(context):
 
     # we loop through however many (time-remapped) frames
     # it takes to get to the end frame
-    while current_TTC_value <= scene.timeremap_endframe_true:
+    while current_TTC_value <= scene.timeremap_endframe:
 
         TR_frames.append(current_TTC_value)
 
@@ -568,24 +562,18 @@ def register():
     )
     
     
-    bpy.types.Scene.timeremap_startframe_true = bpy.props.IntProperty(
-        name="True",
-        description="Frame (BEFORE time remapping is applied) to start TR rendering at"
+    bpy.types.Scene.timeremap_startframe = bpy.props.IntProperty(
+        name="Start",
+        description="Frame (AFTER time remapping is applied) to start TR rendering at",
+        min=0,
+        default=1
     )
     
-    bpy.types.Scene.timeremap_startframe_remapped = bpy.props.IntProperty(
-        name="TR",
-        description="Frame (AFTER time remapping is applied) to start TR rendering at"
-    )
-    
-    bpy.types.Scene.timeremap_endframe_true = bpy.props.IntProperty(
-        name="True",
-        description="Frame (BEFORE time remapping is applied) to end TR rendering at"
-    )
-    
-    bpy.types.Scene.timeremap_endframe_remapped = bpy.props.IntProperty(
-        name="TR",
-        description="Frame (AFTER time remapping is applied) to end TR rendering at"
+    bpy.types.Scene.timeremap_endframe = bpy.props.IntProperty(
+        name="End",
+        description="Frame (BEFORE time remapping is applied) to end TR rendering at",
+        min=1,
+        default=250
     )
 
     # Draw panel under the header "Render" in Render tab of Properties window
