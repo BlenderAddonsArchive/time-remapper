@@ -40,6 +40,12 @@ class OBJECT_OT_render_TR(bpy.types.Operator):
     bl_label = "Render using Time Remapper"
     bl_description = "This renders out frames based on your time remapping"
     bl_register = True
+    
+    rendering = False # Whether or not we are currently rendering
+    stop = False # Whether or not we are done rendering the entire animation
+    _looper = None # Object to loop rendering, since regular for loops don't work
+    _index = -1 # Index of current frame
+    anim_frame = 0 # Current true frame being rendered
 
     # this is only used during rendering frames
     abort_render = bpy.props.BoolProperty(default=False)
@@ -48,6 +54,18 @@ class OBJECT_OT_render_TR(bpy.types.Operator):
         """This signal handler will be called when user hits CTL+C
         while rendering"""
         self.abort_render = True
+    
+    def pre_render(self, unused):
+        # Tell operator we are currently rendering when rendering starts
+        self.rendering = True
+    
+    def post_render(self, unused):
+        # Tell operator we've finished rendering when rendering stops
+        self.rendering = False
+    
+    def stop_render(self, unused):
+        # Tell operator rendering has been cancelled by the GUI
+        self.stop = True
 
     def execute(self, context):
 
@@ -64,25 +82,30 @@ class OBJECT_OT_render_TR(bpy.types.Operator):
                                "you must select an image format"
                                "\n(Current file format: {})"
                                .format(file_format))
-
+        
+        # Register listeners for the renderer
+        bpy.app.handlers.render_pre.append(self.pre_render)
+        bpy.app.handlers.render_post.append(self.post_render)
+        bpy.app.handlers.render_cancel.append(self.stop_render)
+        
         print("Getting list of frames to be rendered "
               "(should take <1 second...)")
-        TR_frames = get_TR_frames(context)
+        self.TR_frames = get_TR_frames(context)
 
         # total number of frames
-        total_num_fr = len(TR_frames)
+        self.total_num_fr = len(self.TR_frames)
 
-        print("\n\nRendering " + str(total_num_fr) +
+        print("\n\nRendering " + str(self.total_num_fr) +
               " frames now ... to stop after rendering current frame,"
               "press CTL+C...\n\n")
 
         # store original render path
-        orig_render_path = scene.render.filepath
+        self.orig_render_path = scene.render.filepath
 
         # keep a count for labelling the filenames
-        count = 0
+        self.count = 0
 
-        first_frame = scene.timeremap_startframe
+        self.first_frame = scene.timeremap_startframe
 
         # before starting loop, set up a signal handler for CTL+C
         # since KeyboardInterrupt doesn't work while rendering
@@ -92,19 +115,75 @@ class OBJECT_OT_render_TR(bpy.types.Operator):
 
         # start loop that renders the frames.
         # (anim_frame is the actual frame in animation we're at, ex: 4.5435)
-        for anim_frame in TR_frames:
+        # for anim_frame in TR_frames:
+        
+        # Register a timer to run the function "modal" every half second
+        self._looper = context.window_manager.event_timer_add(0.5, context.window)
+        context.window_manager.modal_handler_add(self)
+        
+        # Run the function "modal" if we are still rendering our animation
+        return {"RUNNING_MODAL"}
+    # end of execute(.)
+    
+    def modal(self, context, event):
+        scene = context.scene
+        
+        if event.type == "TIMER" and self._index >= len(self.TR_frames):
+            self.stop = True
+        
+        if event.type == "TIMER" and self.stop:
+            # Remove handlers
+            bpy.app.handlers.render_pre.remove(self.pre_render)
+            bpy.app.handlers.render_post.remove(self.post_render)
+            bpy.app.handlers.render_cancel.remove(self.stop_render)
+            context.window_manager.event_timer_remove(self._looper)
+            
+            # reset the filepath in case user wants to play movie afterwards
+            scene.render.filepath = self.orig_render_path
+            
+            # Reset TR rendering progress
+            scene.timeremap_trueframe = "0 / 0"
+            scene.timeremap_trframe = "0 / 0"
 
+            print("\n\nDone")
+
+            return {"FINISHED"}
+        
+        if event.type == "TIMER" and not self.rendering:
+            if not self._index == -1:
+                print("Frames completed: " + str(self.count+1) + "/" +
+                      str(self.total_num_fr) + "\n\n")
+                self.count += 1
+                
+                # Clean up after keyframing immune objects (if there are any)
+                for iobj in self.immuneObjects:
+                    delete_locrot_keyframes(iobj, anim_frame)
+
+                # Check if CTL+C was pressed by user
+                if self.abort_render:
+                    print("\nAborting Animation")
+                    # reset the SIGINT handler back to default
+                    signal.signal(signal.SIGINT, signal.default_int_handler)
+                    self.stop = True
+            
+            self._index += 1
+            anim_frame = self.TR_frames[self._index]
+            
+            scene.timeremap_trueframe = ('%.3f' % anim_frame) + " / " + str(self.total_num_fr)
+            
             print("-------------------")
 
             # check for frame step and skip frame if necessary
-            if count % scene.frame_step != 0:
-                print("Stepping over frame " + str(first_frame+count) +
+            if self.count % scene.frame_step != 0:
+                print("Stepping over frame " + str(self.first_frame+self.count) +
                       ". (Frame Step is " + str(scene.frame_step) + ")")
-                count += 1
-                continue
+                self.count += 1
+                return {"PASS_THROUGH"}
 
             # render frame, ie. the number we assign this frame
-            render_frame = first_frame + count
+            render_frame = self.first_frame + self.count
+            
+            scene.timeremap_trframe = str(render_frame) + " / " + str(self.total_num_fr)
 
             #################################
             #  Dealing with Immune Objects  #
@@ -112,7 +191,7 @@ class OBJECT_OT_render_TR(bpy.types.Operator):
 
             # list of immune objects that will need to have their inserted
             # keyframes deleted
-            immuneObjects = []
+            self.immuneObjects = []
             # Minimum frame offset. We don't want to have temporary keyframes
             # placed on integer frames (ex: 4.0, 7.0), since it could mess with
             # original keyframes.  I found this value to work well empirically,
@@ -139,7 +218,7 @@ class OBJECT_OT_render_TR(bpy.types.Operator):
                         iobj = scene.objects[iobj_name]
                         keyframe_locrot_by_target_frame(iobj, render_frame,
                                                         anim_frame)
-                        immuneObjects.append(iobj)
+                        self.immuneObjects.append(iobj)
 
             ########################################
             #  End of Dealing with Immune Objects  #
@@ -147,7 +226,7 @@ class OBJECT_OT_render_TR(bpy.types.Operator):
 
             # create filename.
             # Note that Blender expects a four digit integer at the end.
-            current_renderpath = orig_render_path + str(render_frame).zfill(4)
+            current_renderpath = self.orig_render_path + str(render_frame).zfill(4)
 
             # check if file exists, and if so whether we should overwrite it
             # first we get the full current path to image to be rendered by
@@ -160,8 +239,8 @@ class OBJECT_OT_render_TR(bpy.types.Operator):
                     print("Skipping frame " + str(render_frame) +
                           " because there already exists the file: " +
                           full_current_renderpath)
-                    count += 1
-                    continue
+                    self.count += 1
+                    return {"PASS_THROUGH"}
                 else:
                     print("File: " + full_current_renderpath +
                           " will be overwritten.")
@@ -181,30 +260,10 @@ class OBJECT_OT_render_TR(bpy.types.Operator):
             scene.render.filepath = current_renderpath
             print("Rendering true frame:", anim_frame)
             # Render frame
-            bpy.ops.render.render(write_still=True)
-            print("Frames completed: " + str(count+1) + "/" +
-                  str(total_num_fr) + "\n\n")
-            count += 1
-
-            # Clean up after keyframing immune objects (if there are any)
-            for iobj in immuneObjects:
-                delete_locrot_keyframes(iobj, anim_frame)
-
-            # Check if CTL+C was pressed by user
-            if self.abort_render:
-                print("\nAborting Animation")
-                # reset the SIGINT handler back to default
-                signal.signal(signal.SIGINT, signal.default_int_handler)
-                break
+            bpy.ops.render.render('INVOKE_DEFAULT',write_still=True)
+        
+        return {"PASS_THROUGH"}
         # End loop that renders frames
-
-        # reset the filepath in case user wants to play movie afterwards
-        scene.render.filepath = orig_render_path
-
-        print("\n\nDone")
-
-        return {"FINISHED"}
-    # end of execute(.)
 # end of class OBJECT_OT_render_TR
 
 
@@ -281,7 +340,19 @@ def draw(self, context):
     rowsub.prop(scene, "timeremap_endframe")
     
     row = layout.row(align=True)
+    row.label("TR Render Progress:")
+    
+    row = layout.row(align=True)
     row.alignment = "LEFT"
+    rowsub = row.row(align=True)
+    rowsub.label("True Frame:")
+    rowsub.prop(scene, "timeremap_trueframe")
+    
+    row = layout.row(align=True)
+    row.alignment = "LEFT"
+    rowsub = row.row(align=True)
+    rowsub.label("TR Frame:")
+    rowsub.prop(scene, "timeremap_trframe")
 
 
 def find_fcurve(scene_or_obj, data_path, index=0):
@@ -574,6 +645,18 @@ def register():
         description="Frame (BEFORE time remapping is applied) to end TR rendering at",
         min=1,
         default=250
+    )
+    
+    bpy.types.Scene.timeremap_trueframe = bpy.props.StringProperty(
+        name="",
+        description="True frame currently being rendered",
+        default="0 / 0"
+    )
+    
+    bpy.types.Scene.timeremap_trframe = bpy.props.StringProperty(
+        name="",
+        description="TR frame currently being rendered",
+        default="0 / 0"
     )
 
     # Draw panel under the header "Render" in Render tab of Properties window
