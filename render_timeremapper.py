@@ -128,7 +128,7 @@ class OBJECT_OT_render_TR(bpy.types.Operator):
     def modal(self, context, event):
         scene = context.scene
         
-        if event.type == "TIMER" and self._index >= len(self.TR_frames):
+        if event.type == "TIMER" and self._index > len(self.TR_frames)-2:
             self.stop = True
         
         if event.type == "TIMER" and self.stop:
@@ -142,7 +142,7 @@ class OBJECT_OT_render_TR(bpy.types.Operator):
             scene.render.filepath = self.orig_render_path
             
             # Reset TR rendering progress
-            scene.timeremap_trueframe = "0 / 0"
+            scene.timeremap_trueframe = "0"
             scene.timeremap_trframe = "0 / 0"
 
             print("\n\nDone")
@@ -169,8 +169,6 @@ class OBJECT_OT_render_TR(bpy.types.Operator):
             self._index += 1
             anim_frame = self.TR_frames[self._index]
             
-            scene.timeremap_trueframe = ('%.3f' % anim_frame) + " / " + str(self.total_num_fr)
-            
             print("-------------------")
 
             # check for frame step and skip frame if necessary
@@ -183,7 +181,12 @@ class OBJECT_OT_render_TR(bpy.types.Operator):
             # render frame, ie. the number we assign this frame
             render_frame = self.first_frame + self.count
             
-            scene.timeremap_trframe = str(render_frame) + " / " + str(self.total_num_fr)
+            # Update render status
+            scene.timeremap_trueframe = ('%.3f' % anim_frame)
+            if scene.timeremap_method == "TTC":
+                scene.timeremap_trframe = str(render_frame) + " / " + str(self.total_num_fr+scene.timeremap_startframe-1)
+            else:
+                scene.timeremap_trframe = str(self.count+1) + " / " + str(self.total_num_fr)
 
             #################################
             #  Dealing with Immune Objects  #
@@ -650,7 +653,7 @@ def register():
     bpy.types.Scene.timeremap_trueframe = bpy.props.StringProperty(
         name="",
         description="True frame currently being rendered",
-        default="0 / 0"
+        default="0"
     )
     
     bpy.types.Scene.timeremap_trframe = bpy.props.StringProperty(
