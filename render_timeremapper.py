@@ -19,7 +19,7 @@
 bl_info = {
     "name": "Time Remapper",
     "author": "Garrett",
-    "version": (0, 1),
+    "version": (0, 2),
     "blender": (2, 70, 0),
     "location": "Properties > Render > Render Panel",
     "description": "Time remaps whole scene according to an animatable"
