@@ -40,12 +40,12 @@ class OBJECT_OT_render_TR(bpy.types.Operator):
     bl_label = "Render using Time Remapper"
     bl_description = "This renders out frames based on your time remapping"
     bl_register = True
-    
-    rendering = False # Whether or not we are currently rendering
-    stop = False # Whether or not we are done rendering the entire animation
-    _looper = None # Object to loop rendering, since regular for loops don't work
-    _index = -1 # Index of current frame
-    anim_frame = 0 # Current true frame being rendered
+
+    rendering = False  # Whether or not we are currently rendering
+    stop = False  # Whether or not we are done rendering the entire animation
+    _looper = None  # Object to loop rendering, regular for loops don't work
+    _index = -1  # Index of current frame
+    anim_frame = 0  # Current true frame being rendered
 
     # this is only used during rendering frames
     abort_render = bpy.props.BoolProperty(default=False)
@@ -54,15 +54,15 @@ class OBJECT_OT_render_TR(bpy.types.Operator):
         """This signal handler will be called when user hits CTL+C
         while rendering"""
         self.abort_render = True
-    
+
     def pre_render(self, unused):
         # Tell operator we are currently rendering when rendering starts
         self.rendering = True
-    
+
     def post_render(self, unused):
         # Tell operator we've finished rendering when rendering stops
         self.rendering = False
-    
+
     def stop_render(self, unused):
         # Tell operator rendering has been cancelled by the GUI
         self.stop = True
@@ -82,12 +82,12 @@ class OBJECT_OT_render_TR(bpy.types.Operator):
                                "you must select an image format"
                                "\n(Current file format: {})"
                                .format(file_format))
-        
+
         # Register listeners for the renderer
         bpy.app.handlers.render_pre.append(self.pre_render)
         bpy.app.handlers.render_post.append(self.post_render)
         bpy.app.handlers.render_cancel.append(self.stop_render)
-        
+
         print("Getting list of frames to be rendered "
               "(should take <1 second...)")
         self.TR_frames = get_TR_frames(context)
@@ -116,31 +116,32 @@ class OBJECT_OT_render_TR(bpy.types.Operator):
         # start loop that renders the frames.
         # (anim_frame is the actual frame in animation we're at, ex: 4.5435)
         # for anim_frame in TR_frames:
-        
+
         # Register a timer to run the function "modal" every half second
-        self._looper = context.window_manager.event_timer_add(0.5, context.window)
+        self._looper = context.window_manager.event_timer_add(
+            0.5, context.window)
         context.window_manager.modal_handler_add(self)
-        
+
         # Run the function "modal" if we are still rendering our animation
         return {"RUNNING_MODAL"}
     # end of execute(.)
-    
+
     def modal(self, context, event):
         scene = context.scene
-        
-        if event.type == "TIMER" and self._index > len(self.TR_frames)-2:
+
+        if event.type == "TIMER" and self._index > len(self.TR_frames) - 2:
             self.stop = True
-        
+
         if event.type == "TIMER" and self.stop:
             # Remove handlers
             bpy.app.handlers.render_pre.remove(self.pre_render)
             bpy.app.handlers.render_post.remove(self.post_render)
             bpy.app.handlers.render_cancel.remove(self.stop_render)
             context.window_manager.event_timer_remove(self._looper)
-            
+
             # reset the filepath in case user wants to play movie afterwards
             scene.render.filepath = self.orig_render_path
-            
+
             # Reset TR rendering progress
             scene.timeremap_trueframe = "0"
             scene.timeremap_trframe = "0 / 0"
@@ -148,13 +149,13 @@ class OBJECT_OT_render_TR(bpy.types.Operator):
             print("\n\nDone")
 
             return {"FINISHED"}
-        
+
         if event.type == "TIMER" and not self.rendering:
             if not self._index == -1:
-                print("Frames completed: " + str(self.count+1) + "/" +
+                print("Frames completed: " + str(self.count + 1) + "/" +
                       str(self.total_num_fr) + "\n\n")
                 self.count += 1
-                
+
                 # Clean up after keyframing immune objects (if there are any)
                 for iobj in self.immuneObjects:
                     delete_locrot_keyframes(iobj, anim_frame)
@@ -165,28 +166,32 @@ class OBJECT_OT_render_TR(bpy.types.Operator):
                     # reset the SIGINT handler back to default
                     signal.signal(signal.SIGINT, signal.default_int_handler)
                     self.stop = True
-            
+
             self._index += 1
             anim_frame = self.TR_frames[self._index]
-            
+
             print("-------------------")
 
             # check for frame step and skip frame if necessary
             if self.count % scene.frame_step != 0:
-                print("Stepping over frame " + str(self.first_frame+self.count) +
+                print("Stepping over frame " +
+                      str(self.first_frame + self.count) +
                       ". (Frame Step is " + str(scene.frame_step) + ")")
                 self.count += 1
                 return {"PASS_THROUGH"}
 
             # render frame, ie. the number we assign this frame
             render_frame = self.first_frame + self.count
-            
+
             # Update render status
             scene.timeremap_trueframe = ('%.3f' % anim_frame)
             if scene.timeremap_method == "TTC":
-                scene.timeremap_trframe = str(render_frame) + " / " + str(self.total_num_fr+scene.timeremap_startframe-1)
+                scene.timeremap_trframe = str(
+                    render_frame) + " / " + str(self.total_num_fr +
+                                                scene.timeremap_startframe - 1)
             else:
-                scene.timeremap_trframe = str(self.count+1) + " / " + str(self.total_num_fr)
+                scene.timeremap_trframe = str(
+                    self.count + 1) + " / " + str(self.total_num_fr)
 
             #################################
             #  Dealing with Immune Objects  #
@@ -207,7 +212,7 @@ class OBJECT_OT_render_TR(bpy.types.Operator):
                 # and if so, push away to have minimum offset
                 if 0 <= anim_frame % 1 < min_fr_offset:
                     anim_frame += min_fr_offset - anim_frame % 1
-                elif 1-min_fr_offset < anim_frame % 1 < 1:
+                elif 1 - min_fr_offset < anim_frame % 1 < 1:
                     anim_frame -= anim_frame % 1 - (1 - min_fr_offset)
 
                 for iobj_name in [scene.timeremap_immuneObject1,
@@ -229,7 +234,8 @@ class OBJECT_OT_render_TR(bpy.types.Operator):
 
             # create filename.
             # Note that Blender expects a four digit integer at the end.
-            current_renderpath = self.orig_render_path + str(render_frame).zfill(4)
+            current_renderpath = self.orig_render_path + \
+                str(render_frame).zfill(4)
 
             # check if file exists, and if so whether we should overwrite it
             # first we get the full current path to image to be rendered by
@@ -263,8 +269,8 @@ class OBJECT_OT_render_TR(bpy.types.Operator):
             scene.render.filepath = current_renderpath
             print("Rendering true frame:", anim_frame)
             # Render frame
-            bpy.ops.render.render('INVOKE_DEFAULT',write_still=True)
-        
+            bpy.ops.render.render("INVOKE_DEFAULT", write_still=True)
+
         return {"PASS_THROUGH"}
         # End loop that renders frames
 # end of class OBJECT_OT_render_TR
@@ -333,28 +339,27 @@ def draw(self, context):
                        text="")
     rowsub.prop_search(scene, "timeremap_immuneObject3", scene, "objects",
                        text="")
-    
-    
+
     row = layout.row(align=True)
     row.alignment = "LEFT"
     rowsub = row.row(align=True)
     rowsub.alignment = "LEFT"
     rowsub.prop(scene, "timeremap_startframe")
     rowsub.prop(scene, "timeremap_endframe")
-    
+
     row = layout.row(align=True)
     row.label("TR Render Progress:")
-    
+
     row = layout.row(align=True)
     row.alignment = "LEFT"
     rowsub = row.row(align=True)
     rowsub.label("True Frame:")
     rowsub.prop(scene, "timeremap_trueframe")
-    
+
     row = layout.row(align=True)
     row.alignment = "LEFT"
     rowsub = row.row(align=True)
-    rowsub.label("TR Frame:")
+    rowsub.label("Remapped Frame:")
     rowsub.prop(scene, "timeremap_trframe")
 
 
@@ -615,7 +620,7 @@ def register():
             ("TTC", "Time-Time Curve",
              "Use a curve which shows how rendered frame maps"
              "to true-time frame")
-            ],
+        ],
         default="SF", update=update_TR_method
     )
 
@@ -634,31 +639,28 @@ def register():
         name="Immune Object 3",
         description="Make object immune to time remapping effects"
     )
-    
-    
+
     bpy.types.Scene.timeremap_startframe = bpy.props.IntProperty(
         name="Start",
-        description="Frame (AFTER time remapping is applied) to start TR rendering at",
+        description="Remapped frame to start TR rendering at",
         min=0,
-        default=1
-    )
-    
+        default=1)
+
     bpy.types.Scene.timeremap_endframe = bpy.props.IntProperty(
         name="End",
-        description="Frame (BEFORE time remapping is applied) to end TR rendering at",
+        description="True frame to end TR rendering at",
         min=1,
-        default=250
-    )
-    
+        default=250)
+
     bpy.types.Scene.timeremap_trueframe = bpy.props.StringProperty(
         name="",
         description="True frame currently being rendered",
         default="0"
     )
-    
+
     bpy.types.Scene.timeremap_trframe = bpy.props.StringProperty(
         name="",
-        description="TR frame currently being rendered",
+        description="Remapped frame currently being rendered",
         default="0 / 0"
     )
 
