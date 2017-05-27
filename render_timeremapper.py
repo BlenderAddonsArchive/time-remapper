@@ -19,7 +19,7 @@
 bl_info = {
     "name": "Time Remapper",
     "author": "Garrett",
-    "version": (0, 2),
+    "version": (0, 2, 1),
     "blender": (2, 70, 0),
     "location": "Properties > Render > Render Panel",
     "description": "Time remaps whole scene according to an animatable"
@@ -676,6 +676,10 @@ def unregister():
     del bpy.types.Scene.timeremap_immuneObject1
     del bpy.types.Scene.timeremap_immuneObject2
     del bpy.types.Scene.timeremap_immuneObject3
+    del bpy.types.Scene.timeremap_startframe
+    del bpy.types.Scene.timeremap_endframe
+    del bpy.types.Scene.timeremap_trueframe
+    del bpy.types.Scene.timeremap_trframe
 
     # remove the panel from the UI
     bpy.types.RENDER_PT_render.remove(draw)
