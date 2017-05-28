@@ -133,6 +133,8 @@ class OBJECT_OT_render_TR(bpy.types.Operator):
             self.stop = True
 
         if event.type == "TIMER" and self.stop:
+            print("\nAborting Animation")
+
             # Remove handlers
             bpy.app.handlers.render_pre.remove(self.pre_render)
             bpy.app.handlers.render_post.remove(self.post_render)
@@ -162,10 +164,10 @@ class OBJECT_OT_render_TR(bpy.types.Operator):
 
                 # Check if CTL+C was pressed by user
                 if self.abort_render:
-                    print("\nAborting Animation")
                     # reset the SIGINT handler back to default
                     signal.signal(signal.SIGINT, signal.default_int_handler)
                     self.stop = True
+                    return {"PASS_THROUGH"}
 
             self._index += 1
             anim_frame = self.TR_frames[self._index]
