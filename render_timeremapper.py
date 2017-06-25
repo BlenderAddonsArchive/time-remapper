@@ -18,16 +18,16 @@
 
 bl_info = {
     "name": "Time Remapper",
-    "author": "Garrett",
+    "author": "Garrett, hxxr",
     "version": (0, 2, 1),
     "blender": (2, 70, 0),
     "location": "Properties > Render > Render Panel",
-    "description": "Time remaps whole scene according to an animatable"
+    "description": "Time remaps whole scene according to an animatable "
                    "speed factor",
     "warning": "beta",
     "category": "Render",
     "wiki_url": "",
-    "tracker_url": ""}
+    "tracker_url": "https://github.com/hxxr/time-remapper"}
 
 
 import bpy
