@@ -96,7 +96,7 @@ class OBJECT_OT_render_TR(bpy.types.Operator):
         self.total_num_fr = len(self.TR_frames)
 
         print("\n\nRendering " + str(self.total_num_fr) +
-              " frames now ... to stop after rendering current frame,"
+              " frames now ... to stop after rendering current frame, "
               "press CTL+C...\n\n")
 
         # store original render path
@@ -315,7 +315,6 @@ def draw(self, context):
     layout.label("Time Remapper:")
 
     row = layout.row(align=True)
-    row.alignment = "LEFT"
     row.prop(scene, "timeremap_method")
     if scene.timeremap_method == "SF":
         row.prop(scene, "timeremap_speedfactor")
@@ -332,20 +331,23 @@ def draw(self, context):
                     icon="PLAY")
 
     row = layout.row(align=True)
-    row.alignment = "LEFT"
     rowsub = row.row(align=True)
-    rowsub.label("Immune objects:")
+    rowsub.label("Immune object 1:")
     rowsub.prop_search(scene, "timeremap_immuneObject1", scene, "objects",
                        text="")
+    row = layout.row(align=True)
+    rowsub = row.row(align=True)
+    rowsub.label("Immune object 2:")
     rowsub.prop_search(scene, "timeremap_immuneObject2", scene, "objects",
                        text="")
+    row = layout.row(align=True)
+    rowsub = row.row(align=True)
+    rowsub.label("Immune object 3:")
     rowsub.prop_search(scene, "timeremap_immuneObject3", scene, "objects",
                        text="")
 
     row = layout.row(align=True)
-    row.alignment = "LEFT"
     rowsub = row.row(align=True)
-    rowsub.alignment = "LEFT"
     rowsub.prop(scene, "timeremap_startframe")
     rowsub.prop(scene, "timeremap_endframe")
 
@@ -353,13 +355,11 @@ def draw(self, context):
     row.label("TR Render Progress:")
 
     row = layout.row(align=True)
-    row.alignment = "LEFT"
     rowsub = row.row(align=True)
     rowsub.label("True Frame:")
     rowsub.prop(scene, "timeremap_trueframe")
 
     row = layout.row(align=True)
-    row.alignment = "LEFT"
     rowsub = row.row(align=True)
     rowsub.label("Remapped Frame:")
     rowsub.prop(scene, "timeremap_trframe")
