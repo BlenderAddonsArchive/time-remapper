@@ -117,9 +117,9 @@ class OBJECT_OT_render_TR(bpy.types.Operator):
         # (anim_frame is the actual frame in animation we're at, ex: 4.5435)
         # for anim_frame in TR_frames:
 
-        # Register a timer to run the function "modal" every half second
+        # Register a timer to run the function "modal" every few seconds
         self._looper = context.window_manager.event_timer_add(
-            0.5, context.window)
+            2, context.window)
         context.window_manager.modal_handler_add(self)
 
         # Run the function "modal" if we are still rendering our animation
